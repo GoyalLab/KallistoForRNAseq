@@ -5,6 +5,12 @@
 
 # Make sure scripts are in the same directory and the correct permissions are given. 
 
+for R1_SRC in *R1.fastq.gz*
+do
+    DIRECTORY=${R1_SRC//R1.fastq.gz/output}
+    eval mkdir -v -m 777 $DIRECTORY
+done 
+
 # Make sure youre in the trim environment that has fastqc, cutadapt, trim-galore and fq installed.
 source activate trim
 
@@ -30,9 +36,12 @@ echo "Paired end files validated"
 # Creating a loop for fastqc. Realistically, youre probably going to have multiple samples to run. Creating a loop will automate the process. 
 # For this we will create a variable FASTQ that can be tied to a list, *fastq.gz* which is comprised of all files with that ending in the directory.
 # Multithreading maybe applied to your command by adding -t #of threads. Here it is set to 8, if your computer has more threads then you can increase number for faster output.
-for FASTQ in *fastq.gz*
- do
-	eval fastqc $FASTQ -t 8
+for R1_SRC in *R1.fastq.gz*
+do
+    DIRECTORY=${R1_SRC//R1.fastq.gz/output}
+    R2_SRC=${R1_SRC//R1.fastq.gz/R2.fastq.gz}
+	eval fastqc $R1_SRC -t 8 --outdir $DIRECTORY
+    eval fastqc $R2_SRC -t 8 --outdir $DIRECTORY
 done 
 
 # Optional-Trimming your reads. Sometimes, near the end of a long fragment you may get poor quality scores for bases. Most aligners do soft trimmings of these sequences.
@@ -41,9 +50,12 @@ done
 
 # trim-galore works with cutadapt and fastqc to sense adaptor sequences and poor quality bases to do trimmings.
 # This loop will perform trimmings on all files ending with fastq.gz and then generate: a new trimmed fastq.gz file, a trimming report and will do another fastqc report for the trimmed data.
-for FASTQ in *fastq.gz*
- do
-	eval trim_galore --fastqc $FASTQ 
+for R1_SRC in *R1.fastq.gz*
+do
+    DIRECTORY=${R1_SRC//R1.fastq.gz/output}
+    R2_SRC=${R1_SRC//R1.fastq.gz/R2.fastq.gz}
+	eval trim_galore --fastqc $R1_SRC --outdir $DIRECTORY
+    eval trim_galore --fastqc $R2_SRC --outdir $DIRECTORY
 done 
 
 echo "QCReports have been generated"
@@ -59,7 +71,8 @@ do
 	R2_SRC=${R1_SRC//R1_trimmed.fq.gz/R2_trimmed.fq.gz}
 	OUT=${R1_SRC//R1_trimmed.fq.gz/_mapped}
 	LOG=${R1_SRC//R1_trimmed.fq.gz/_mapped.log}
-	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUT $R1_SRC $R2_SRC -t 8 &> $LOG
+	DIRECTORY=${R1_SRC//R1_tirmmed.fq.gz/output}
+	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUT $R1_SRC $R2_SRC -t 8 &> $LOG --outdir $DIRECTORY
 done
 
 echo "Pseudoalignment has been completed"
@@ -69,14 +82,15 @@ echo "Pseudoalignment has been completed"
 for R1_SRC in *R1_trimmed.fq.gz*
 do
 	R2_SRC=${R1_SRC//R1_trimmed.fq.gz/R2_trimmed.fq.gz}
+	DIRECTORY=${R1_SRC//R1_trimmed.fq.gz/output}
 	OUTR1=${R1_SRC//R1_trimmed.fq.gz/_mapped}
 	LOGR1=${R1_SRC//R1_trimmed.fq.gz/_mapped1.log}
 	OUTR2=${R2_SRC//R2_trimmed.fq.gz/_mapped}
 	LOGR2=${R2_SRC//R2_trimmed.fq.gz/_mapped2.log}
 	BAMR1=${R1_SRC//R1_trimmed.fq.gz/_kallisto.fr.bam}
 	BAMR2=${R2_SRC//R2_trimmed.fq.gz/_kallisto.rf.bam}
-	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUTR1 --fr-stranded --pseudobam $R1_SRC $R2_SRC &> $LOGR1 | samtools view -Sb - > $BAMR1 &> $LOGR1
-	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUTR2 --rf-stranded --pseudobam $R1_SRC $R2_SRC &> $LOGR2 | samtools view -Sb - > $BAMR2 &> $LOGR2
+	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUTR1 --fr-stranded --pseudobam $R1_SRC $R2_SRC &> $LOGR1 --outdir $DIRECTORY | samtools view -Sb - > $BAMR1 &> $LOGR1 --outdir $DIRECTORY
+	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUTR2 --rf-stranded --pseudobam $R1_SRC $R2_SRC &> $LOGR2 --outdir $DIRECTORY | samtools view -Sb - > $BAMR2 &> $LOGR2 --outdir $DIRECTORY
 done
 
 echo "BAM file has been created"
@@ -84,7 +98,7 @@ echo "BAM file has been created"
 # Compiled Quality control. Using MultiQC you can compile all the fastqc reports and log folders from quantifications together. 
 # If data was trimmed, move old fastqc reports out of directory before running.
 # Running multiqc will generate an html file that can be opened in your browser to view your data.
-multiqc -d .
+multiqc -d . --recurse
 
 echo "multiqc report has been generated"
 

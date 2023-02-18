@@ -5,6 +5,12 @@
 
 # Make sure scripts are in the same directory and the correct permissions are given. 
 
+for FASTQ in *fastq.gz*
+do
+    DIRECTORY=${FASTQ//fastq.gz/output}
+    eval mkdir -v -m 777 $DIRECTORY
+done  
+
 # Make sure youre in the trim environment that has fastqc, cutadapt, trim-galore and fq installed.
 source activate trim
 
@@ -17,7 +23,8 @@ source activate trim
 # Multithreading maybe applied to your command by adding -t #of threads. Here it is set to 8, if your computer has more threads then you can increase number for faster output.
 for FASTQ in *fastq.gz*
 do
-	eval fastqc $FASTQ -t 8
+	DIRECTORY=${FASTQ//fastq.gz/output}
+	eval fastqc $FASTQ -t 8 --outdir $DIRECTORY
 done 
 
 # Optional-Trimming your reads. Sometimes, near the end of a long fragment you may get poor quality scores for bases. Most aligners do soft trimmings of these sequences.
@@ -28,7 +35,8 @@ done
 # This loop will perform trimmings on all files ending with fastq.gz and then generate: a new trimmed fastq.gz file, a trimming report and will do another fastqc report for the trimmed data.
 for FASTQ in *fastq.gz*
 do
-	eval trim_galore --fastqc $FASTQ 
+	DIRECTORY=${FASTQ//fastq.gz/output}
+	eval trim_galore --fastqc $FASTQ  --outdir $DIRECTORY
 done 
 
 echo "QCReport has finished running"
@@ -44,7 +52,8 @@ for FASTQ in *trimmed.fq.gz*
 do
 	OUT=${FASTQ//.fq.gz/_mapped}
 	LOG=${FASTQ//.fq.gz/_mapped.log}
-	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUT --single -l 250 -s 30 $FASTQ -t 8 &> $LOG
+	DIRECTORY=${FASTQ//fq.gz/output}
+	eval kallisto quant -i Homo_sapiens.GRCh38.cdna.all.index -o $OUT --single -l 250 -s 30 $FASTQ -t 8 &> $LOG --outdir $DIRECTORY
 done 
 
 echo "Pseudoalignment has been completed"
@@ -52,6 +61,6 @@ echo "Pseudoalignment has been completed"
 # Compiled Quality control. Using MultiQC you can compile all the fastqc reports and log folders from quantifications together. 
 # If data was trimmed, move old fastqc reports out of directory before running.
 # Running multiqc will generate an html file that can be opened in your browser to view your data.
-multiqc -d .
+multiqc -d . --recurse
 
 echo "multiqc report has been generated"
